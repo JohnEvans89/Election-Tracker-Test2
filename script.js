@@ -1,47 +1,66 @@
-// CONFIGURATION — your SHEET_ID is already correct
+// CONFIGURATION — your sheet ID is perfect
 const SHEET_ID = "2PACX-1vTHgn0f9wd8_UVmd3arACKx1Ao6E05qYAt6rUAHb8Tx7ax1V82JFE35_9MzRin1RxSep4UN-euMbt4J";
 const SHEET_CSV_URL = `https://docs.google.com/spreadsheets/d/e/${SHEET_ID}/pub?output=csv`;
 const PROXIED_URL = `https://corsproxy.io/?${encodeURIComponent(SHEET_CSV_URL)}`;
 const REFRESH_INTERVAL = 30000;
 
-// State name → abbreviation map (unchanged)
-const stateAbbrev = { /* ... same as before ... */ 
-  "Alabama":"AL","Alaska":"AK","Arizona":"AZ","Arkansas":"AR","California":"CA","Colorado":"CO","Connecticut":"CT","Delaware":"DE",
-  "Florida":"FL","Georgia":"GA","Hawaii":"HI","Idaho":"ID","Illinois":"IL","Indiana":"IN","Iowa":"IA","Kansas":"KS","Kentucky":"KY",
-  "Louisiana":"LA","Maine":"ME","Maryland":"MD","Massachusetts":"MA","Michigan":"MI","Minnesota":"MN","Mississippi":"MS","Missouri":"MO",
-  "Montana":"MT","Nebraska":"NE","Nevada":"NV","New Hampshire":"NH","New Jersey":"NJ","New Mexico":"NM","New York":"NY",
-  "North Carolina":"NC","North Dakota":"ND","Ohio":"OH","Oklahoma":"OK","Oregon":"OR","Pennsylvania":"PA","Rhode Island":"RI",
-  "South Carolina":"SC","South Dakota":"SD","Tennessee":"TN","Texas":"TX","Utah":"UT","Vermont":"VT","Virginia":"VA",
-  "Washington":"WA","West Virginia":"WV","Wisconsin":"WI","Wyoming":"WY","District of Columbia":"DC"
+// State name → abbreviation map (uppercase)
+const stateAbbrev = {
+  "Alabama":"AL","Alaska":"AK","Arizona":"AZ","Arkansas":"AR","California":"CA",
+  "Colorado":"CO","Connecticut":"CT","Delaware":"DE","Florida":"FL","Georgia":"GA",
+  "Hawaii":"HI","Idaho":"ID","Illinois":"IL","Indiana":"IN","Iowa":"IA",
+  "Kansas":"KS","Kentucky":"KY","Louisiana":"LA","Maine":"ME","Maryland":"MD",
+  "Massachusetts":"MA","Michigan":"MI","Minnesota":"MN","Mississippi":"MS","Missouri":"MO",
+  "Montana":"MT","Nebraska":"NE","Nevada":"NV","New Hampshire":"NH","New Jersey":"NJ",
+  "New Mexico":"NM","New York":"NY","North Carolina":"NC","North Dakota":"ND","Ohio":"OH",
+  "Oklahoma":"OK","Oregon":"OR","Pennsylvania":"PA","Rhode Island":"RI","South Carolina":"SC",
+  "South Dakota":"SD","Tennessee":"TN","Texas":"TX","Utah":"UT","Vermont":"VT",
+  "Virginia":"VA","Washington":"WA","West Virginia":"WV","Wisconsin":"WI","Wyoming":"WY",
+  "District of Columbia":"DC"
 };
 
 let stateData = {};
 let demVotes = 0, repVotes = 0, demPop = 0, repPop = 0;
+let map;
+let geoJsonLayer; // ← This is the fix: store the layer globally
 
-// Initialize map
+// Initialize Leaflet map
 function initMap() {
-  $('#map').usmap({
-    stateStyles: { fill: '#6b7280' },
-    // This callback fires when the map is fully ready
-    mapRendered: function() {
-      console.log('Map fully rendered – ready for coloring');
-      updateMap(); // color immediately if data already loaded
-    },
-    click: function(event, data) {
-      const info = stateData[data.name] || {};
-      alert(`${data.name}: ${info.winner || 'TBD'}\nHarris: ${info.dem?.toLocaleString() || 0} | Trump: ${info.rep?.toLocaleString() || 0}`);
-    }
-  });
-  console.log('US Map initialized');
+  map = L.map('map').setView([37.8, -96], 4);
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap'
+  }).addTo(map);
+
+  // Load US states GeoJSON
+  fetch('https://raw.githubusercontent.com/PublicaMundi/MappingAPI/master/data/geojson/us-states.json')
+    .then(r => r.json())
+    .then(geojson => {
+      geoJsonLayer = L.geoJSON(geojson, {
+        style: { fillColor: '#6b7280', weight: 2, color: 'white', fillOpacity: 0.8 },
+        onEachFeature: (feature, layer) => {
+          const stateName = feature.properties.name;
+          layer.bindTooltip(stateName, { permanent: false, direction: 'center' });
+          layer.on('click', () => {
+            const info = stateData[stateName] || {};
+            alert(`${stateName}\nWinner: ${info.winner || 'TBD'}\nHarris: ${(info.dem||0).toLocaleString()} | Trump: ${(info.rep||0).toLocaleString()}`);
+          });
+        }
+      }).addTo(map);
+
+      console.log('GeoJSON layer added — map ready for coloring');
+      updateMap(); // Color immediately if data is already loaded
+    })
+    .catch(err => console.error('GeoJSON failed:', err));
 }
 
-// Parse helpers (unchanged)
+// Parse helpers
 function parseNumber(str) { return parseInt(String(str).replace(/,/g,'').trim()) || 0; }
 function cleanString(str) { return String(str||'').trim().replace(/^["']|["']$/g,''); }
 
-// fetchData() – unchanged, just kept the good version
+// Full fetchData()
 async function fetchData() {
-  console.log('Fetching data...');
+  console.log('Fetching election data...');
   try {
     const response = await fetch(PROXIED_URL);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -68,15 +87,15 @@ async function fetchData() {
       if (winner === "Trump") repVotes += ev;
     }
 
-    console.log(`Loaded ${Object.keys(stateData).length} states – Harris ${demVotes} | Trump ${repVotes}`);
+    console.log(`Loaded ${Object.keys(stateData).length} states — Harris ${demVotes} EVs | Trump ${repVotes} EVs`);
     updateDashboard();
   } catch (err) {
-    console.error(err);
-    alert('Data load failed – check console (F12)');
+    console.error('Fetch failed:', err);
+    alert('Data load failed — check console');
   }
 }
 
-// Update electoral & popular vote (unchanged)
+// Update numbers
 function updateElectoralVotes() {
   document.getElementById("demVotes").textContent = demVotes;
   document.getElementById("repVotes").textContent = repVotes;
@@ -91,36 +110,34 @@ function updatePopularVote() {
   document.getElementById("repBar").style.width = repPct + "%";
 }
 
-// FIXED: Only color the map when it’s truly ready
+// FIXED: Color the stored GeoJSON layer
 function updateMap() {
-  if (!$('#map').data('usmap')) {
-    console.log('Map not ready yet – will color when mapRendered fires');
+  if (!geoJsonLayer) {
+    console.log('Map not ready yet — waiting for GeoJSON');
     return;
   }
 
-  const stateStyles = {};
-  Object.keys(stateData).forEach(state => {
-    const code = stateAbbrev[state];
-    if (code) {
-      stateStyles[code] = {
-        fill: stateData[state].winner === "Harris" ? "#2563eb" :
-              stateData[state].winner === "Trump" ? "#dc2626" : "#6b7280"
-      };
-    }
+  geoJsonLayer.eachLayer(layer => {
+    const stateName = layer.feature.properties.name;
+    const info = stateData[stateName];
+    const color = info?.winner === "Harris" ? "#2563eb" :
+                  info?.winner === "Trump"  ? "#dc2626" : "#6b7280";
+    layer.setStyle({ fillColor: color });
   });
-  $('#map').usmap('setStateStyles', stateStyles);
-  console.log('Map colored successfully');
+
+  console.log('Map colored successfully!');
 }
 
 function updateDashboard() {
   updateElectoralVotes();
   updatePopularVote();
-  updateMap(); // safe now – it will wait if map isn’t ready
+  updateMap();
   document.getElementById("lastUpdate").textContent = new Date().toLocaleTimeString();
 }
 
 // Start
 document.addEventListener('DOMContentLoaded', () => {
+  console.log('Dashboard starting...');
   initMap();
   fetchData();
   setInterval(fetchData, REFRESH_INTERVAL);
