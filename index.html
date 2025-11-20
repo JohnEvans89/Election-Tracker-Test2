@@ -6,17 +6,14 @@
   <title>2025 Election Results Live</title>
   <script src="https://cdn.tailwindcss.com"></script>
   
-  <!-- jQuery + Raphael (unchanged) -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/raphael/2.3.0/raphael.min.js"></script>
-  
-  <!-- FIXED: Correct CDN for us-map jQuery plugin (from official GitHub) -->
-  <script src="https://cdn.rawgit.com/NewSignature/us-map/0677afad/jquery.usmap.js"></script>
+  <!-- FIXED: Modern Leaflet map (no jQuery/Raphael bugs) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
 </head>
-<body>
+<body class="bg-gray-900 text-white">
   <div class="container mx-auto px-4 py-8">
     <h1 class="text-4xl md:text-6xl font-bold text-center mb-8">2025 U.S. Election Results</h1>
 
@@ -57,7 +54,7 @@
     <!-- US Map -->
     <div class="bg-gray-800 rounded-xl p-6 mb-10">
       <h2 class="text-2xl font-bold mb-4">Electoral Map</h2>
-      <div id="map" style="height: 500px;"></div>
+      <div id="map" style="height: 500px; border: 2px solid #374151; border-radius: 8px;"></div>
     </div>
 
     <div class="text-center text-gray-400">
