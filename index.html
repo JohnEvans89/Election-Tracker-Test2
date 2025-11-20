@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>2025 Election Results Live</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://unpkg.com/simple-us-map@1.0.5/usmap.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>body { font-family: 'Inter', sans-serif; }</style>
+</head>
+<body class="bg-gray-900 text-white">
+  <div class="container mx-auto px-4 py-8">
+    <h1 class="text-4xl md:text-6xl font-bold text-center mb-8">2025 U.S. Election Results</h1>
+
+    <!-- Electoral Vote Counter -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+      <div class="bg-blue-900 rounded-xl p-8 text-center">
+        <div class="text-5xl font-bold" id="demVotes">0</div>
+        <div class="text-xl mt-2">Harris / Walz</div>
+      </div>
+      <div class="bg-gray-800 rounded-xl p-8 text-center">
+        <div class="text-3xl font-bold">270 to win</div>
+      </div>
+      <div class="bg-red-900 rounded-xl p-8 text-center">
+        <div class="text-5xl font-bold" id="repVotes">0</div>
+        <div class="text-xl mt-2">Trump / Vance</div>
+      </div>
+    </div>
+
+    <!-- Popular Vote Bar -->
+    <div class="bg-gray-800 rounded-xl p-6 mb-10">
+      <h2 class="text-2xl font-bold mb-4">Popular Vote</h2>
+      <div class="flex items-center space-x-8">
+        <div class="flex-1">
+          <div class="text-blue-400 text-2xl font-bold" id="demPercent">0%</div>
+          <div class="bg-gray-700 rounded-full h-8 mt-2">
+            <div id="demBar" class="bg-blue-600 h-8 rounded-full transition-all duration-1000" style="width: 0%"></div>
+          </div>
+        </div>
+        <div class="flex-1">
+          <div class="text-red-400 text-2xl font-bold text-right" id="repPercent">0%</div>
+          <div class="bg-gray-700 rounded-full h-8 mt-2">
+            <div id="repBar" class="bg-red-600 h-8 rounded-full transition-all duration-1000" style="width: 0%"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- US Map -->
+    <div class="bg-gray-800 rounded-xl p-6 mb-10">
+      <h2 class="text-2xl font-bold mb-4">Electoral Map</h2>
+      <div id="map" style="height: 500px;"></div>
+    </div>
+
+    <div class="text-center text-gray-400">
+      Last updated: <span id="lastUpdate">--</span> | Refreshes every 30 seconds
+    </div>
+  </div>
+
+  <script>
+    const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTHgn0f9wd8_UVmd3arACKx1Ao6E05qYAt6rUAHb8Tx7ax1V82JFE35_9MzRin1RxSep4UN-euMbt4J/pub?output=csv";
+
+    let demVotes = 0, repVotes = 0, demPop = 0, repPop = 0;
+    const stateData = {};
+
+    async function fetchData() {
+      const response = await fetch(SHEET_CSV_URL);
+      const text = await response.text();
+      const rows = text.split('\n').slice(1); // skip header
+
+      demVotes = repVotes = demPop = repPop = 0;
+      stateData = {};
+
+      rows.forEach(row => {
+        const [state, demStr, repStr, evStr, winner] = row.split(',');
+        if (!state || !evStr) return;
+        const dem = parseInt(demStr) || 0;
+        const rep = parseInt(repStr) || 0;
+        const ev = parseInt(evStr);
+        const win = winner?.trim();
+
+        stateData[state.trim()] = { dem, rep, ev, winner: win };
+
+        demPop += dem;
+        repPop += rep;
+
+        if (win === "Harris") demVotes += ev;
+        if (win === "Trump") repVotes += ev;
+      });
+
+      updateDashboard();
+    }
+
+    function updateDashboard() {
+      document.getElementById("demVotes").textContent = demVotes;
+      document.getElementById("repVotes").textContent = repVotes;
+
+      const totalPop = demPop + repPop;
+      const demPct = totalPop ? (demPop / totalPop * 100).toFixed(1) : 0;
+      const repPct = totalPop ? (repPop / totalPop * 100).toFixed(1) : 0;
+
+      document.getElementById("demPercent").textContent = demPct + "%";
+      document.getElementById("repPercent").textContent = repPct + "%";
+      document.getElementById("demBar").style.width = demPct + "%";
+      document.getElementById("repBar").style.width = repPct + "%";
+
+      // Update map colors
+      Object.keys(stateData).forEach(state => {
+        const color = stateData[state].winner === "Harris" ? "#2563eb" :
+                     stateData[state].winner === "Trump" ? "#dc2626" : "#6b7280";
+        window.usmap.setStateColor(state, color);
+      });
+
+      document.getElementById("lastUpdate").textContent = new Date().toLocaleTimeString();
+    }
+
+    // Initial load + auto-refresh
+    fetchData();
+    setInterval(fetchData, 30000); // every 30 seconds
+  </script>
+</body>
+</html>
